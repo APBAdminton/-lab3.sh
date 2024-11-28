@@ -1,30 +1,19 @@
-#!/bin/bash
+ #!/bin/bash
 
-# Check if running as root
-if [ "$(id -u)" != 0 ]; then
-    echo "Run as root"
-    exit 1
+# Check if verbose mode is enabled
+if [ "$1" = "-verbose" ]; then
+    VERBOSE=1
+    shift
 fi
 
-# Parse arguments
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        -name) NAME="$2"; shift 2 ;;
-        -ip) IP="$2"; shift 2 ;;
-        -hostentry) HOST_NAME="$2"; HOST_IP="$3"; shift 3 ;;
-        *) echo "Usage: $0 [-name <name>] [-ip <ip>] [-hostentry <name> <ip>]"; exit 1 ;;
-    esac
-done
+# Transfer configure-host.sh script to each server
+scp configure-host.sh remoteadmin@server1-mgmt:/root
+scp configure-host.sh remoteadmin@server2-mgmt:/root
 
-# Change hostname
-if [ -n "$NAME" ]; then
-    echo "$NAME" > /etc/hostname
-    hostname "$NAME"
-fi
+# Run configure-host.sh script on each server
+ssh remoteadmin@server1-mgmt -- /root/configure-host.sh -name loghost -ip 192.168.16.3 -hostentry webhost 192.168.16.4 $([ "$VERBOSE" = 1 ] && echo "-verbose")
+ssh remoteadmin@server2-mgmt -- /root/configure-host.sh -name webhost -ip 192.168.16.4 -hostentry loghost 192.168.16.3 $([ "$VERBOSE" = 1 ] && echo "-verbose")
 
-
-# Update hosts entry
-if [ -n "$HOST_NAME" ] && [ -n "$HOST_IP" ]; then
-    sed -i "/$HOST_NAME/d" /etc/hosts
-    echo "$HOST_IP $HOST_NAME" >> /etc/hosts
-fi
+# Update local /etc/hosts file
+./configure-host.sh -hostentry loghost 192.168.16.3 $([ "$VERBOSE" = 1 ] && echo "-verbose")
+./configure-host.sh -hostentry webhost 192.168.16.4 $([ "$VERBOSE" = 1 ] && echo "-verbose")
